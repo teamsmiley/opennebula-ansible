@@ -1,12 +1,4 @@
 ---
-# - name: SSH
-#   lineinfile:
-#     path: /etc/ssh/sshd_config
-#     regexp: "# UsePAM no"
-#     line: "UsePAM yes"
-
-# Check host can run Virtualization status:
-# if failed fail the process if not run ansible
 - name: check machine support virtualization
   shell: |
     egrep -wo 'vmx' /proc/cpuinfo | sort | uniq
@@ -16,12 +8,6 @@
   fail:
     msg: "ERROR - not support virtualization please check bios"
   when: virtualization_support.stdout != "vmx"
-
-- name: Setup yum repo outside
-  shell: |
-    route add default gw {{ default_gw }}
-    route del -net 0.0.0.0 gw {{ remove_default_gw }}
-    chattr -i /etc/yum.repos.d/
 
 - name: Install epel yum repository
   yum:
@@ -40,15 +26,11 @@
     - qemu-kvm
     - libvirt
     - opennebula-node-kvm
-    #- qemu-kvm-ev # i dont know what it is
-    #- yum-versionlock # i dont know what it is
-    # - tuned # i dont know what it is, systemd start/enable
 
 - name: Insert a line at the end of a file.
   blockinfile:
-    block: "{{ lookup('file', './templates/libvirtd.conf.j2') }}"
+    block: "{{ lookup('file', '../templates/libvirtd.conf.j2') }}"
     path: /etc/libvirt/libvirtd.conf
-    # backup: yes
   tags:
     - libvirtd
 
@@ -81,9 +63,6 @@
     path: /etc/sysconfig/network-scripts/ifcfg-br0
   register: br0
 
-- debug:
-    var: br0
-
 - name: Replace ethernet configuration to enable bridge
   template:
     src: eth0.j2
@@ -93,7 +72,7 @@
   tags:
     - bridge
 
-- name: Copy bridge configuration file
+- name: Copy br01 configuration file
   template:
     src: br0.j2
     dest: /etc/sysconfig/network-scripts/ifcfg-br0
@@ -119,7 +98,7 @@
   tags:
     - bridge
 
-- name: Copy bridge configuration file
+- name: Copy br01 configuration file
   template:
     src: br1.j2
     dest: /etc/sysconfig/network-scripts/ifcfg-br1
@@ -128,6 +107,10 @@
   tags:
     - bridge
 
+- name: delete virsh network
+  shell: |
+    virsh net-destroy default && virsh net-undefine default
+
 - name: Restart network service
   service:
     name: network
@@ -135,7 +118,3 @@
   when: not br0.stat.exists
   tags:
     - bridge
-
-- name: delete virsh network
-  shell: |
-    virsh net-destroy default && virsh net-undefine default

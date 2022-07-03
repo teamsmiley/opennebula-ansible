@@ -58,25 +58,11 @@
       - Jinja2>=2.10.0
     executable: pip3
 
-# - name: Downloading Terraform
-#   get_url:
-#     url: https://releases.hashicorp.com/terraform/0.14.7/terraform_0.14.7_linux_amd64.zip
-#     dest: /tmp/terraform.zip
-
-# - name: install terraform
-#   shell: |
-#     unzip /tmp/terraform.zip -d /usr/bin
-#     chmod +x /usr/bin/terraform
-
 - name: Edit /etc/one/oned.conf so it listens in all interfaces (default is localhost only)
   lineinfile: dest=/etc/one/oned.conf
     backup=yes
     regexp="^LISTEN_ADDRESS = \"127.0.0.1\""
     line="LISTEN_ADDRESS = \"0.0.0.0\""
-
-# recommand skip this step on manual
-# - name: Install required ruby gems
-#   shell: yes | /usr/share/one/install_gems
 
 - name: Copy oneadmin user ssh config
   template:
