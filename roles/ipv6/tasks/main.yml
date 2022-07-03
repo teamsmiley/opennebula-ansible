@@ -1,0 +1,40 @@
+---
+- name: setup ip6tables
+  copy:
+    src: templates/ip6tables
+    dest: /etc/modules-load.d/ip6tables
+    owner: root
+    group: root
+    mode: 0644
+
+- name: Enable ipv6 in grup
+  replace:
+    path: /etc/default/grub
+    regexp: "ipv6.disable=1"
+    replace: "ipv6.disable=0"
+    backup: yes
+  register: grub
+
+- name: Make grub
+  become: true
+  command: "grub2-mkconfig -o /boot/grub2/grub.cfg"
+  when: grub.changed
+  register: updategrub
+
+- name: Restart machine
+  shell: sleep 5 && systemctl --message="Ansible updates triggered" reboot
+  async: 1
+  poll: 0
+  ignore_errors: true
+  when: updategrub.changed
+
+- name: Wait for server to restart successfully
+  wait_for:
+    host: "{{ (ansible_ssh_host|default(ansible_host))|default(inventory_hostname) }}"
+    search_regex: "OpenSSH"
+    port: 22
+    timeout: 300
+    connect_timeout: 50
+    delay: 10
+  become: false
+  delegate_to: localhost

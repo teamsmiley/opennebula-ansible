@@ -1,0 +1,141 @@
+---
+# - name: SSH
+#   lineinfile:
+#     path: /etc/ssh/sshd_config
+#     regexp: "# UsePAM no"
+#     line: "UsePAM yes"
+
+# Check host can run Virtualization status:
+# if failed fail the process if not run ansible
+- name: check machine support virtualization
+  shell: |
+    egrep -wo 'vmx' /proc/cpuinfo | sort | uniq
+  register: virtualization_support
+
+- name: Fail on not valid
+  fail:
+    msg: "ERROR - not support virtualization please check bios"
+  when: virtualization_support.stdout != "vmx"
+
+- name: Setup yum repo outside
+  shell: |
+    route add default gw {{ default_gw }}
+    route del -net 0.0.0.0 gw {{ remove_default_gw }}
+    chattr -i /etc/yum.repos.d/
+
+- name: Install epel yum repository
+  yum:
+    name: epel-release
+    state: latest
+
+- name: disable selinux
+  selinux:
+    state: disabled
+
+- name: install Opennebula kvm node packages
+  yum:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - qemu-kvm
+    - libvirt
+    - opennebula-node-kvm
+    #- qemu-kvm-ev # i dont know what it is
+    #- yum-versionlock # i dont know what it is
+    # - tuned # i dont know what it is, systemd start/enable
+
+- name: Insert a line at the end of a file.
+  blockinfile:
+    block: "{{ lookup('file', './templates/libvirtd.conf.j2') }}"
+    path: /etc/libvirt/libvirtd.conf
+    # backup: yes
+  tags:
+    - libvirtd
+
+- name: Enable and start services
+  service:
+    name: "{{ item }}"
+    state: started
+    enabled: yes
+  with_items:
+    - libvirtd.service
+
+- name: create directory
+  file:
+    path: /var/lib/one/.ssh
+    state: directory
+    owner: oneadmin
+    group: oneadmin
+    mode: "0700"
+
+- name: copy authorized_keys
+  copy:
+    src: ../templates/authorized_keys
+    dest: /var/lib/one/.ssh/authorized_keys
+    mode: "400"
+    owner: oneadmin
+    group: oneadmin
+
+- name: check ifcfg-br0 installed
+  stat:
+    path: /etc/sysconfig/network-scripts/ifcfg-br0
+  register: br0
+
+- debug:
+    var: br0
+
+- name: Replace ethernet configuration to enable bridge
+  template:
+    src: eth0.j2
+    dest: /etc/sysconfig/network-scripts/ifcfg-eth0
+    backup: yes
+  when: not br0.stat.exists
+  tags:
+    - bridge
+
+- name: Copy bridge configuration file
+  template:
+    src: br0.j2
+    dest: /etc/sysconfig/network-scripts/ifcfg-br0
+    backup: yes
+  when: not br0.stat.exists
+  tags:
+    - bridge
+
+- name: check ifcfg-br1 installed
+  stat:
+    path: /etc/sysconfig/network-scripts/ifcfg-br1
+  register: br1
+
+- debug:
+    var: br1
+
+- name: Replace ethernet configuration to enable bridge
+  template:
+    src: eth1.j2
+    dest: /etc/sysconfig/network-scripts/ifcfg-eth1
+    backup: yes
+  when: not br1.stat.exists
+  tags:
+    - bridge
+
+- name: Copy bridge configuration file
+  template:
+    src: br1.j2
+    dest: /etc/sysconfig/network-scripts/ifcfg-br1
+    backup: yes
+  when: not br1.stat.exists
+  tags:
+    - bridge
+
+- name: Restart network service
+  service:
+    name: network
+    state: restarted
+  when: not br0.stat.exists
+  tags:
+    - bridge
+
+- name: delete virsh network
+  shell: |
+    virsh net-destroy default && virsh net-undefine default

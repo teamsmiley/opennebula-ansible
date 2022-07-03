@@ -1,0 +1,8 @@
+BOOTPROTO=static
+ONBOOT=yes
+PEERDNS=no
+IPADDR={{ ansible_default_ipv4.address }}
+NETMASK={{ ansible_default_ipv4.netmask }}
+GATEWAY={{ ansible_default_ipv4.gateway }}
+TYPE=Bridge
+DEVICE=br0

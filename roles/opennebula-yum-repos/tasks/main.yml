@@ -1,0 +1,12 @@
+---
+- name: Setup yum repo outside
+  shell: |
+    route add default  gw 172.22.1.11
+    route del -net 0.0.0.0 gw 172.22.1.1
+    chattr -i /etc/yum.repos.d/
+
+- name: Install opennebula yum repo
+  template: src=opennebula.repo.j2
+    dest=/etc/yum.repos.d/opennebula.repo
+    owner=root
+    mode=644

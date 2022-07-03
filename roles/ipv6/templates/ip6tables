@@ -1,0 +1,4 @@
+ip6table_filter
+ip6t_REJECT
+ip6table_mangle
+ip6_tables
